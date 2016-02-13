@@ -1,5 +1,5 @@
 
-#ifndef ___TSPLIB_H__
+#ifndef __TSPLIB_H__
 #define __TSPLIB_H__
 
 #include <math.h>
@@ -8,28 +8,25 @@
 #include <unistd.h>
 #include <stdlib.h>
 
-typedef struct node node;
 
-struct node{
-	int pos;
+struct city{
 	int id;
 	float x;
 	float y;
-	node *neigh[100];
-	node *left;
-	node *right;
 };
 
-typedef struct {
-	char name[20];
-	char type[20];
+struct tspfile{
+	char name[50];
+	char type[50];
 	char comment[200];
 	int dimension;
-	char display_data_type[20];
-	char edge_weight_type[20];
+	char display_data_type[50];
+	char edge_weight_type[50];
 	int neigh_count;
-	node *nodes;
-} tspfile;
-int parse_file(char * file_name, tspfile * file); 
+	struct city *cities;
+};
+
+
+int parse_file(char * file_name, struct tspfile * file);
 
 #endif

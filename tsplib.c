@@ -1,7 +1,6 @@
 #include "tsplib.h"
 
-#define MAX_SIZE 	600000
-#define MAX_NEIGH	19
+#define MAX_SIZE 	2000000
 
 enum header_types {
  NAME,		
@@ -47,7 +46,7 @@ int get_lien_type(FILE *ofp) {
 	return rtn;
 }
 
-int get_desipt(FILE * ofp, char *line) {
+void get_desipt(FILE * ofp, char *line) {
 	char curr_c = 'f';
 	int index = 0;
 
@@ -62,31 +61,34 @@ int get_desipt(FILE * ofp, char *line) {
 
 }
 
-int input_cities(FILE * ofp, tspfile * file) {
+int input_cities(FILE * ofp,struct  tspfile * file) {
 	int numAdded = 0;
 	char line[100];
-	int i;
+
 	fgets(line, sizeof(line), ofp);
 	fgets(line, sizeof(line), ofp);
+	printf("\tPopulation:\n");
 	while (feof(ofp) == 0) {
 		int index;
 		float tempx, tempy;
 		fgets(line, sizeof(line), ofp);
 
 		sscanf(line, "%d %f %f", &index, &tempx, &tempy);
-		file->nodes[index - 1].id = index;
-		file->nodes[index - 1].pos = index - 1;
-		file->nodes[index - 1].y = tempy;
-		file->nodes[index - 1].x = tempx;
+		if(index == numAdded +1){
+			file->cities[numAdded].id = index;
+			file->cities[numAdded].y = tempy;
+			file->cities[numAdded].x = tempx;
+			printf("\t\tCity ID: %02d at %f,%f\n",file->cities[numAdded].id,file->cities[numAdded].x,file->cities[numAdded].y);
+			numAdded++;
+		}
 		
-		numAdded++;
 
 	}
 
 	return numAdded;
 }
 
-int parse_file(char * file_name, tspfile * file) {
+int parse_file(char * file_name, struct tspfile * file) {
 	FILE *ofp;
 	char line[200];
 	int type;
@@ -95,36 +97,44 @@ int parse_file(char * file_name, tspfile * file) {
 		printf("fail to open file\n");
 		return -1;
 	}
+	printf("TSP info\n");
 	while ((type = get_lien_type(ofp)) != -1) {
 		memset((void*) line, 0, sizeof(line));
 		get_desipt(ofp, line);
 		switch (type) {
 		case NAME:
 			strcpy(file->name, line);
+			printf("\tName: %s\n",file->name);
 			break;
 		case TYPE:
 			strcpy(file->type, line);
+			printf("\tType: %s\n",file->type);
 			break;
 		case COMMENT:
 			strcpy(file->comment, line);
+			printf("\tComment: %s\n",file->comment);
 			break;
 		case DIMENSION:
 			file->dimension = atoi(line);
-			file->nodes = malloc(file->dimension * sizeof(node));
+			file->cities = malloc(file->dimension * sizeof(struct city));
+			printf("\tSize: %d\n",file->dimension);
 			break;
 		case EDGE:
 			strcpy(file->edge_weight_type, line);
+			printf("\tEdge weighting: %s\n",file->edge_weight_type);
 			break;
 		case DISPLAY:
 			strcpy(file->display_data_type, line);
+			printf("\tDisplay tpye: %s\n",file->display_data_type);
 			break;
 		}
 	}
+
 	if (file->dimension < MAX_SIZE) {
 		input_cities(ofp, file);
 	} else {	
 		return -1;
 	}
-
+	printf("TSP file read success\n");
 	return 0;
 }
