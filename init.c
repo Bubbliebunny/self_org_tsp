@@ -98,6 +98,22 @@ void populate_matrix(struct tspfile *map, double ** matrix) {
 	//return true;
 }
 
+static void sort_assending(double *distance, struct node **nodes,u_int size){
+	int i;
+	for(i = size - 2; i >= 0 ; i--){
+		if(distance[i] > distance[i + 1]){
+			double tmpd;
+			struct node *tmpn;
+			tmpd = distance[i];
+			tmpn = nodes[i];
+			distance[i] = distance[i + 1];
+			nodes[i] = nodes[i + 1];
+			distance[i + 1] = tmpd;
+			nodes[i + 1] = tmpn;
+		}
+	}
+}
+
 static void sort_desending(double *distance, struct node **nodes,u_int size){
 	int i;
 	for(i = 0; i < size- 1; i++){
@@ -131,18 +147,18 @@ void calculate_neighbours(struct node*nodes, u_int size, u_int neighbours) {
 						nodes[y].id->y);
 
 
-				if (dis < shortest[0]) {
-					shortest[0] = dis;
-					nodes[i].neighbours[0] = &nodes[y];
-					sort_desending(shortest, nodes[i].neighbours,neighbours);
+				if (dis < shortest[neighbours -1]) {
+					shortest[neighbours - 1] = dis;
+					nodes[i].neighbours[neighbours - 1] = &nodes[y];
+					sort_assending(shortest, nodes[i].neighbours,neighbours);
 				}
 
 			}
 		}
 
-		printf("node %d: ", i);
+		printf("node %d: ", i +1);
 		for (z = 0; z < neighbours; z++) {
-			printf("%d ", nodes[i].neighbours[z]->pos);
+			printf("%d ", nodes[i].neighbours[z]->pos +1);
 		}
 		printf("\n");
 

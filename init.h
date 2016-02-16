@@ -13,6 +13,6 @@ struct node {
 	struct node** neighbours;
 };
 
-
+double calc_dis(int x, int y, int x2, int y2);
 
 #endif //__INIT_H_
