@@ -6,9 +6,11 @@
 #include <stdlib.h>
 #include <math.h>
 #include <stdbool.h>
+#include <assert.h>
 
-void display_help();
-struct node *setup_nodes(struct tspfile *map, u_int neighbours);
+static void display_help();
+static void init_list(struct list*all_list, struct tspfile* map, u_int neighbours);
+static void calculate_neighbours(struct list *all_list, u_int neighbours);
 
 int main(int argc, char **argv) {
 	char *file_name;
@@ -18,13 +20,14 @@ int main(int argc, char **argv) {
 	struct tspfile file;
 	u_int jpc = 0;
 	char option;
+	struct list all_list;
 
 	printf("Processing cmd args...\n");
 	while ((option = getopt(argc, argv, "f:c:n:j:hr")) != -1) {
 		switch (option) {
 
 		case 'f':
-			file_name =  optarg;
+			file_name = optarg;
 			break;
 		case 'c':
 			cycles = atoi(optarg);
@@ -47,26 +50,26 @@ int main(int argc, char **argv) {
 			break;
 		}
 	}
-	printf("Done %d\n",neighbours);
+	printf("Done %d\n", neighbours);
 	if ((parse_file(file_name, &file)) != -1) {
-		struct node *nodes;
-		if(jpc == 0){
-			jpc = file.dimension/2;
+		if (jpc == 0) {
+			jpc = file.dimension / 2;
 		}
-		if(neighbours == 0){
-			neighbours = file.dimension/10;
+		if (neighbours == 0) {
+			neighbours = file.dimension / 10;
 		}
-		if(cycles == 0){
+		if (cycles == 0) {
 			cycles = file.dimension;
 		}
-		nodes = setup_nodes(&file, neighbours);
-		init_list(nodes,file.dimension);
-		start_selforg(neighbours, jpc, cycles,rand);
+		//nodes = setup_nodes(&file, neighbours);
+		init_list(&all_list, &file, neighbours);
+		calculate_neighbours(&all_list, neighbours);
+		start_selforg(&all_list, neighbours, jpc, cycles, rand);
 	}
 	return 0;
 }
 
-void display_help() {
+static void display_help() {
 	printf("Usage: selforg [OPTION...] \n");
 	printf("\t-f <file_name>\tTSPLIB file (.tsp file) using cord format\n");
 	printf(
@@ -86,7 +89,7 @@ double calc_dis(int x, int y, int x2, int y2) {
 	return linec;
 }
 
-void populate_matrix(struct tspfile *map, double ** matrix) {
+static void populate_matrix(struct tspfile *map, double ** matrix) {
 	register int i, y;
 	int size = map->dimension;
 	for (i = 0; i < size; i++) {
@@ -98,10 +101,10 @@ void populate_matrix(struct tspfile *map, double ** matrix) {
 	//return true;
 }
 
-static void sort_assending(double *distance, struct node **nodes,u_int size){
+static void sort_assending(double *distance, struct node **nodes, u_int size) {
 	int i;
-	for(i = size - 2; i >= 0 ; i--){
-		if(distance[i] > distance[i + 1]){
+	for (i = size - 2; i >= 0; i--) {
+		if (distance[i] > distance[i + 1]) {
 			double tmpd;
 			struct node *tmpn;
 			tmpd = distance[i];
@@ -114,10 +117,10 @@ static void sort_assending(double *distance, struct node **nodes,u_int size){
 	}
 }
 
-static void sort_desending(double *distance, struct node **nodes,u_int size){
+static void sort_desending(double *distance, struct node **nodes, u_int size) {
 	int i;
-	for(i = 0; i < size- 1; i++){
-		if(distance[i] < distance[i + 1]){
+	for (i = 0; i < size - 1; i++) {
+		if (distance[i] < distance[i + 1]) {
 			double tmpd;
 			struct node *tmpn;
 			tmpd = distance[i];
@@ -131,52 +134,78 @@ static void sort_desending(double *distance, struct node **nodes,u_int size){
 
 }
 
-void calculate_neighbours(struct node*nodes, u_int size, u_int neighbours) {
-	register int i, y, z;
+static void calculate_neighbours(struct list *all_list, u_int neighbours) {
+	struct list_elem *curr_elem = all_list->head;
 	double *shortest = (double*) malloc(sizeof(double) * neighbours);
-	for (i = 0; i < size; i++) {
+	double dis;
+	struct list_elem *comp_elem;
+	register int i;
 
-		for (z = 0; z < neighbours; z++) {
-			shortest[z] = HUGE_VAL;
+	do {
 
+		comp_elem = curr_elem->right;
+
+		for (i = 0; i < neighbours; i++) {
+			shortest[i] = HUGE_VAL;
 		}
 
-		for (y = 0; y < size; y++) {
-			if (i != y) {
-				double dis = calc_dis(nodes[i].id->x, nodes[i].id->y, nodes[y].id->x,
-						nodes[y].id->y);
+		do {
+			dis = calc_dis(curr_elem->data->id->x, curr_elem->data->id->y,
+					comp_elem->data->id->x, comp_elem->data->id->y);
 
-
-				if (dis < shortest[neighbours -1]) {
-					shortest[neighbours - 1] = dis;
-					nodes[i].neighbours[neighbours - 1] = &nodes[y];
-					sort_assending(shortest, nodes[i].neighbours,neighbours);
-				}
+			if (dis < shortest[neighbours - 1]) {
+				shortest[neighbours - 1] = dis;
+				curr_elem->data->neighbours[neighbours - 1] = comp_elem->data;
+				sort_assending(shortest, curr_elem->data->neighbours, neighbours);
 
 			}
-		}
 
-		printf("node %d: ", i +1);
-		for (z = 0; z < neighbours; z++) {
-			printf("%d ", nodes[i].neighbours[z]->pos +1);
+			comp_elem = comp_elem->right;
+		} while (comp_elem != curr_elem);
+		printf("%d: ",curr_elem->data->id->id);
+		for (i = 0; i < neighbours; i++) {
+			printf("%d ", curr_elem->data->neighbours[i]->id->id);
 		}
 		printf("\n");
+		curr_elem = curr_elem->right;
 
-	}
+	} while (curr_elem != all_list->head);
+
 	free(shortest);
 }
 
-struct node *setup_nodes(struct tspfile *map, u_int neighbours) {
-	register int i = 0;
-	struct node *nodes;
-	nodes = (struct node*)malloc(sizeof(struct node)*map->dimension);
-	for(i = 0; i < map->dimension; i++){
-		nodes[i].id = &map->cities[i];
-		nodes[i].pos = i;
-		nodes[i].neighbours = (struct node**)malloc(sizeof(struct node*)*map->dimension);
-	}
-
-	calculate_neighbours(nodes, map->dimension, neighbours);
-	return nodes;
+static struct node *setup_node(struct city *id, u_int neighbours) {
+	struct node *new_node;
+	new_node = (struct node*) malloc(sizeof(struct node));
+	new_node->id = id;
+	new_node->pos = 0;
+	new_node->neighbours = (struct node**) malloc(
+			sizeof(struct node*) * neighbours);
+	return new_node;
 }
 
+static void init_list(struct list*all_list, struct tspfile* map, u_int neighbours) {
+	struct list_elem *new_elem;
+	struct list_elem *last_elem;
+	int index = 0;
+
+	assert(map->dimension != 0);
+
+	all_list->length = map->dimension;
+
+	new_elem = (struct list_elem *) malloc(sizeof(struct list_elem));
+	new_elem->data = (struct node*)setup_node(&map->cities[index], neighbours);
+	last_elem = new_elem;
+	index++;
+	all_list->head = new_elem;
+	while (index < map->dimension) {
+		new_elem = (struct list_elem *) malloc(sizeof(struct list_elem));
+		new_elem->data = (struct node*)setup_node(&map->cities[index], neighbours);
+		new_elem->left = last_elem;
+		last_elem->right = new_elem;
+		last_elem = new_elem;
+		index++;
+	}
+	all_list->head->left = last_elem;
+	last_elem->right = all_list->head;
+}
