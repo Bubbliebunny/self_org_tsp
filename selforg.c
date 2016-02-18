@@ -2,14 +2,15 @@
 #include "selforg.h"
 #include <stdbool.h>
 #include <stdlib.h>
+#include <time.h>
 #include "draw.h"
+
 
 int left_dis = 0;
 int right_dis = 0;
 double losg = HUGE_VAL;
-
 static void printf_sequence(struct list*);
-
+static _Bool repel(struct list *all_list);
 static _Bool check_neighbour(node *c_node, node *check, int neighbours) {
 	for (int i = 0; i < neighbours; i++) {
 		if (c_node->neighbours[i] == check) {
@@ -21,6 +22,7 @@ static _Bool check_neighbour(node *c_node, node *check, int neighbours) {
 
 static void move(struct list_elem *toMove, int places) {
 	struct list_elem * curr = toMove;
+	int step_count = 0;
 	toMove->left->right = toMove->right;
 	toMove->right->left = toMove->left;
 
@@ -74,7 +76,11 @@ void start_selforg(struct list *all_list, u_int neighbours, u_int jump,
 	struct list_elem * curr;
 	int dir;
 	struct list_elem **nodes = malloc(sizeof(struct list_elem*)*all_list->length);
+	_Bool bounce = true;
 	curr = all_list->head;
+	time_t t;
+   srand((unsigned) time(&t));
+
 	for(int i = 0; i < all_list->length; i++){
 		nodes[i] = curr;
 		curr = curr->right;
@@ -92,10 +98,25 @@ void start_selforg(struct list *all_list, u_int neighbours, u_int jump,
 		//curr = next_st->left;
 		printf_sequence(all_list);
 		draw_map(all_list);
-		if((y % 10000) == 0)
-			neighbours -= 2;
-		if(neighbours < 3)
-			neighbours =3;
+		repel(all_list);
+
+		/*
+		if(bounce) {
+			if((y % 100) == 0)
+				neighbours -= 2;
+			if(neighbours < 3){
+				neighbours = 3;
+				bounce = false;
+			}
+		} else {
+			if((y % 100) == 0)
+				neighbours += 2;
+			if(neighbours > all_list->length - 2){
+				neighbours = all_list->length - 2;
+				bounce = true;
+			}
+			//break;
+		}	*/
 	}
 
 //FILE *ofp;
@@ -121,4 +142,22 @@ if (dis < losg)
 
 printf("%f\n", dis);
 }
+
+static _Bool repel(struct list *all_list){
+	struct list_elem *curr_elem = all_list->head;
+	do {
+		if(curr_elem->data->remote[0] == curr_elem->right->data ){
+			move(curr_elem, -(all_list->length/2));
+		}
+		if(curr_elem->data->remote[0] == curr_elem->left->data ){
+			move(curr_elem, all_list->length/2);
+		}
+
+		curr_elem = curr_elem->right;
+	} while(curr_elem != all_list->head);
+
+}
+
+//static void subset(struct list all_list, u_int neighbours){
+
 

@@ -11,7 +11,7 @@
 static void display_help();
 static void init_list(struct list*all_list, struct tspfile* map, u_int neighbours);
 static void calculate_neighbours(struct list *all_list, u_int neighbours);
-
+static void subset(struct list all_list, u_int neighbours);
 int main(int argc, char **argv) {
 	char *file_name;
 	u_int cycles = 0;
@@ -65,6 +65,7 @@ int main(int argc, char **argv) {
 		init_list(&all_list, &file, neighbours);
 		calculate_neighbours(&all_list, neighbours);
 		start_selforg(&all_list, neighbours, jpc, cycles, rand);
+
 	}
 	return 0;
 }
@@ -103,32 +104,33 @@ static void populate_matrix(struct tspfile *map, double ** matrix) {
 
 static void sort_assending(double *distance, struct node **nodes, u_int size) {
 	int i;
-	for (i = size - 2; i >= 0; i--) {
-		if (distance[i] > distance[i + 1]) {
+	for (i = size - 1; i > 0; i--) {
+		if (distance[i] < distance[i - 1]) {
+			//printf("swap %f - %f\n",distance[i], distance[i-1]);
 			double tmpd;
 			struct node *tmpn;
 			tmpd = distance[i];
 			tmpn = nodes[i];
-			distance[i] = distance[i + 1];
-			nodes[i] = nodes[i + 1];
-			distance[i + 1] = tmpd;
-			nodes[i + 1] = tmpn;
+			distance[i] = distance[i - 1];
+			nodes[i] = nodes[i - 1];
+			distance[i - 1] = tmpd;
+			nodes[i - 1] = tmpn;
 		}
 	}
 }
 
 static void sort_desending(double *distance, struct node **nodes, u_int size) {
 	int i;
-	for (i = 0; i < size - 1; i++) {
-		if (distance[i] < distance[i + 1]) {
+	for (i = size -1; i > 0; i--) {
+		if (distance[i] > distance[i - 1]) {
 			double tmpd;
 			struct node *tmpn;
 			tmpd = distance[i];
 			tmpn = nodes[i];
-			distance[i] = distance[i + 1];
-			nodes[i] = nodes[i + 1];
-			distance[i + 1] = tmpd;
-			nodes[i + 1] = tmpn;
+			distance[i] = distance[i - 1];
+			nodes[i] = nodes[i - 1];
+			distance[i - 1] = tmpd;
+			nodes[i - 1] = tmpn;
 		}
 	}
 
@@ -137,6 +139,7 @@ static void sort_desending(double *distance, struct node **nodes, u_int size) {
 static void calculate_neighbours(struct list *all_list, u_int neighbours) {
 	struct list_elem *curr_elem = all_list->head;
 	double *shortest = (double*) malloc(sizeof(double) * neighbours);
+	double *fairest = (double*) malloc(sizeof(double) * neighbours);
 	double dis;
 	struct list_elem *comp_elem;
 	register int i;
@@ -147,6 +150,7 @@ static void calculate_neighbours(struct list *all_list, u_int neighbours) {
 
 		for (i = 0; i < neighbours; i++) {
 			shortest[i] = HUGE_VAL;
+			fairest[i] = 0.0;
 		}
 
 		do {
@@ -160,11 +164,21 @@ static void calculate_neighbours(struct list *all_list, u_int neighbours) {
 
 			}
 
+			if(dis > fairest[neighbours - 1]){
+				fairest[neighbours - 1] = dis;
+				curr_elem->data->remote[neighbours - 1] = comp_elem->data;
+				sort_desending(fairest, curr_elem->data->remote, neighbours);
+			}
+
 			comp_elem = comp_elem->right;
 		} while (comp_elem != curr_elem);
 		printf("%d: ",curr_elem->data->id->id);
 		for (i = 0; i < neighbours; i++) {
 			printf("%d ", curr_elem->data->neighbours[i]->id->id);
+		}
+		printf("\n");
+		for (i = 0; i < neighbours; i++) {
+			printf("%d ", curr_elem->data->remote[i]->id->id);
 		}
 		printf("\n");
 		curr_elem = curr_elem->right;
@@ -181,6 +195,8 @@ static struct node *setup_node(struct city *id, u_int neighbours) {
 	new_node->pos = 0;
 	new_node->neighbours = (struct node**) malloc(
 			sizeof(struct node*) * neighbours);
+	new_node->remote = (struct node**) malloc(
+				sizeof(struct node*) * neighbours);
 	return new_node;
 }
 
@@ -208,4 +224,10 @@ static void init_list(struct list*all_list, struct tspfile* map, u_int neighbour
 	}
 	all_list->head->left = last_elem;
 	last_elem->right = all_list->head;
+}
+
+static void subset(struct list all_list, u_int neighbours){
+
+
+
 }

@@ -12,6 +12,7 @@ struct node {
 	struct city *id;
 	int pos;
 	struct node** neighbours;
+	struct node** remote;
 };
 
 struct list_elem {
