@@ -9,66 +9,105 @@
 #include <assert.h>
 
 static void display_help();
-static void init_list(struct list*all_list, struct tspfile* map, u_int neighbours);
-static void calculate_neighbours(struct list *all_list, u_int neighbours);
-static void subset(struct list all_list, u_int neighbours);
+static void init_list(struct list*all_list, struct tspfile* map,
+		u_int neighbours, u_int repel);
+static void calculate_neighbours(struct list *all_list, u_int neighbours,
+		u_int repel);
+static void load_N_from_file(FILE *ofp, struct list*all_list, u_int neighbours,
+		u_int repel);
+static void wrtie_N_to_file(FILE *ofp, struct list* all_list, u_int neighbours);
+static int parse_args(int argc, char** argv, u_int *neighbours, u_int *repel, u_int *cycle);
+
 int main(int argc, char **argv) {
 	char *file_name;
-	u_int cycles = 0;
 	u_int neighbours = 0;
-	_Bool rand = false;
+	u_int repel = 0;
+	u_int cycle = 0;
 	struct tspfile file;
-	u_int jpc = 0;
-	char option;
 	struct list all_list;
+	FILE *ofp;
+	char n_file[100];
+
+	if((file_name = parse_args(argc, argv, &neighbours, &repel, &cycle)) == NULL){
+		exit(1);
+	}
+
+	if ((parse_file(file_name, &file)) != -1) {
+		if(neighbours >= file.dimension){
+			exit (1);
+		}
+		init_list(&all_list, &file, file.dimension-neighbours, repel);
+		sprintf(n_file, "Neighbours/N-%s.tsp", file.name);
+		if ((ofp = fopen(n_file, "r")) != NULL) {
+			load_N_from_file(ofp, &all_list, file.dimension-neighbours, repel);
+			fclose(ofp);
+		}
+		else {
+			printf("Unable to find pre-process file, continue?");
+			getchar();
+			calculate_neighbours(&all_list, neighbours, repel);
+			getchar();
+		}
+		sprintf(n_file, "results/R-%s.tsp", file.name);
+		if ((ofp = fopen(n_file, "a")) != NULL) {
+			int opt = get_opt(file.name);
+			double result = start_selforg(&all_list, file.dimension-neighbours, repel,cycle );
+
+			fprintf(ofp,"N:%d C:%d best:%f%%\n",file.dimension-neighbours,cycle,(result / (double)opt) * 100);
+			fclose(ofp);
+		}
+
+	}
+	return 0;
+}
+
+static int parse_args(int argc, char** argv, u_int *neighbours, u_int *repel,u_int *cycle){
+	char option;
+	_Bool n_found = false;
+	_Bool r_found = false;
+	_Bool c_found = false;
+	char* file_name;
 
 	printf("Processing cmd args...\n");
-	while ((option = getopt(argc, argv, "f:c:n:j:hr")) != -1) {
+	while ((option = getopt(argc, argv, "f:n:hr:c:")) != -1) {
 		switch (option) {
-
 		case 'f':
 			file_name = optarg;
 			break;
-		case 'c':
-			cycles = atoi(optarg);
-			break;
 		case 'n':
-			neighbours = atoi(optarg);
+			n_found = true;
+			*neighbours = atoi(optarg);
 			break;
-		case 'j':
-			jpc = atoi(optarg);
+		case 'c':
+			c_found = true;
+			*cycle = atoi(optarg);
 			break;
 		case 'h':
 			display_help();
 			break;
 		case 'r':
-			rand = true;
+			r_found = true;
+			*repel = atoi(optarg);
 			break;
 		default:
 			printf("Unrecognised option %c\n", option);
 			display_help();
+			return 0;
 			break;
 		}
 	}
-	printf("Done %d\n", neighbours);
-	if ((parse_file(file_name, &file)) != -1) {
-		if (jpc == 0) {
-			jpc = file.dimension / 2;
-		}
-		if (neighbours == 0) {
-			neighbours = file.dimension / 10;
-		}
-		if (cycles == 0) {
-			cycles = file.dimension;
-		}
-		//nodes = setup_nodes(&file, neighbours);
-		init_list(&all_list, &file, neighbours);
-		calculate_neighbours(&all_list, neighbours);
-		start_selforg(&all_list, neighbours, jpc, cycles, rand);
-
+	if (!n_found) {
+		return 0;
 	}
-	return 0;
+	if (!r_found) {
+		return 0;
+	}
+	if (!c_found) {
+		return 0;
+	}
+	return file_name;
 }
+
 
 static void display_help() {
 	printf("Usage: selforg [OPTION...] \n");
@@ -80,7 +119,7 @@ static void display_help() {
 
 }
 
-double calc_dis(int x, int y, int x2, int y2) {
+double inline calc_dis(int x, int y, int x2, int y2) {
 	double linea, lineb;
 	double linec = 4.0;
 	linea = abs(x - x2);
@@ -102,7 +141,8 @@ static void populate_matrix(struct tspfile *map, double ** matrix) {
 	//return true;
 }
 
-static void sort_assending(double *distance, struct node **nodes, u_int size) {
+static void inline sort_assending(double *distance, struct node **nodes,
+		u_int size) {
 	int i;
 	for (i = size - 1; i > 0; i--) {
 		if (distance[i] < distance[i - 1]) {
@@ -121,7 +161,7 @@ static void sort_assending(double *distance, struct node **nodes, u_int size) {
 
 static void sort_desending(double *distance, struct node **nodes, u_int size) {
 	int i;
-	for (i = size -1; i > 0; i--) {
+	for (i = size - 1; i > 0; i--) {
 		if (distance[i] > distance[i - 1]) {
 			double tmpd;
 			struct node *tmpn;
@@ -136,10 +176,11 @@ static void sort_desending(double *distance, struct node **nodes, u_int size) {
 
 }
 
-static void calculate_neighbours(struct list *all_list, u_int neighbours) {
+static void calculate_neighbours(struct list *all_list, u_int neighbours,
+		u_int repel) {
 	struct list_elem *curr_elem = all_list->head;
 	double *shortest = (double*) malloc(sizeof(double) * neighbours);
-	double *fairest = (double*) malloc(sizeof(double) * neighbours);
+	double *fairest = (double*) malloc(sizeof(double) * repel);
 	double dis;
 	struct list_elem *comp_elem;
 	register int i;
@@ -150,6 +191,10 @@ static void calculate_neighbours(struct list *all_list, u_int neighbours) {
 
 		for (i = 0; i < neighbours; i++) {
 			shortest[i] = HUGE_VAL;
+
+		}
+		for (i = 0; i < repel; i++) {
+
 			fairest[i] = 0.0;
 		}
 
@@ -164,43 +209,35 @@ static void calculate_neighbours(struct list *all_list, u_int neighbours) {
 
 			}
 
-			if(dis > fairest[neighbours - 1]){
-				fairest[neighbours - 1] = dis;
-				curr_elem->data->remote[neighbours - 1] = comp_elem->data;
-				sort_desending(fairest, curr_elem->data->remote, neighbours);
+			if (dis > fairest[repel - 1]) {
+				fairest[repel - 1] = dis;
+				curr_elem->data->remote[repel - 1] = comp_elem->data;
+				sort_desending(fairest, curr_elem->data->remote, repel);
 			}
 
 			comp_elem = comp_elem->right;
 		} while (comp_elem != curr_elem);
-		printf("%d: ",curr_elem->data->id->id);
-		for (i = 0; i < neighbours; i++) {
-			printf("%d ", curr_elem->data->neighbours[i]->id->id);
-		}
-		printf("\n");
-		for (i = 0; i < neighbours; i++) {
-			printf("%d ", curr_elem->data->remote[i]->id->id);
-		}
-		printf("\n");
 		curr_elem = curr_elem->right;
 
 	} while (curr_elem != all_list->head);
 
 	free(shortest);
+	free(fairest);
 }
 
-static struct node *setup_node(struct city *id, u_int neighbours) {
+static struct node *setup_node(struct city *id, u_int neighbours, u_int repel) {
 	struct node *new_node;
 	new_node = (struct node*) malloc(sizeof(struct node));
 	new_node->id = id;
 	new_node->pos = 0;
 	new_node->neighbours = (struct node**) malloc(
 			sizeof(struct node*) * neighbours);
-	new_node->remote = (struct node**) malloc(
-				sizeof(struct node*) * neighbours);
+	new_node->remote = (struct node**) malloc(sizeof(struct node*) * repel);
 	return new_node;
 }
 
-static void init_list(struct list*all_list, struct tspfile* map, u_int neighbours) {
+static void init_list(struct list*all_list, struct tspfile* map,
+		u_int neighbours, u_int repel) {
 	struct list_elem *new_elem;
 	struct list_elem *last_elem;
 	int index = 0;
@@ -210,13 +247,15 @@ static void init_list(struct list*all_list, struct tspfile* map, u_int neighbour
 	all_list->length = map->dimension;
 
 	new_elem = (struct list_elem *) malloc(sizeof(struct list_elem));
-	new_elem->data = (struct node*)setup_node(&map->cities[index], neighbours);
+	new_elem->data = (struct node*) setup_node(&map->cities[index], neighbours,
+			repel);
 	last_elem = new_elem;
 	index++;
 	all_list->head = new_elem;
 	while (index < map->dimension) {
 		new_elem = (struct list_elem *) malloc(sizeof(struct list_elem));
-		new_elem->data = (struct node*)setup_node(&map->cities[index], neighbours);
+		new_elem->data = (struct node*) setup_node(&map->cities[index], neighbours,
+				repel);
 		new_elem->left = last_elem;
 		last_elem->right = new_elem;
 		last_elem = new_elem;
@@ -226,8 +265,48 @@ static void init_list(struct list*all_list, struct tspfile* map, u_int neighbour
 	last_elem->right = all_list->head;
 }
 
-static void subset(struct list all_list, u_int neighbours){
+static void wrtie_N_to_file(FILE *ofp, struct list *all_list, u_int neighbours) {
+	struct list_elem * curr = all_list->head;
 
+	do {
+		fprintf(ofp, "%d:", curr->data->id->id);
+		for (int i = 0; i < neighbours; i++) {
+			fprintf(ofp, "%d,", curr->data->neighbours[i]->id->id);
+		}
+		fprintf(ofp, "\n");
+		curr = curr->right;
+	} while (curr != all_list->head);
+}
 
+static struct node *get_node_by_ID(struct list*all_list, int id) {
+	struct list_elem * curr = all_list->head;
+	do {
+		if (id == curr->data->id->id) {
+			return curr->data;
+		}
+		curr = curr->right;
+	} while (curr != all_list->head);
+	return NULL;
+}
 
+static void load_N_from_file(FILE *ofp, struct list*all_list, u_int neighbours,
+		u_int repel) {
+	struct list_elem * curr = all_list->head;
+	int catch;
+
+	do {
+		fscanf(ofp, "%d:", &
+		catch);
+		for (int i = 0; i < all_list->length - 1; i++) {
+			fscanf(ofp, "%d,", &
+			catch);
+			if (i < neighbours) {
+				curr->data->neighbours[i] = get_node_by_ID(all_list, catch);
+			}
+			if (i >= (all_list->length - 1)  - repel) {
+				curr->data->remote[(all_list->length - (i + 1)) - 1] = get_node_by_ID(all_list, catch);
+			}
+		}
+		curr = curr->right;
+	} while (curr != all_list->head);
 }

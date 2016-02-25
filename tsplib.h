@@ -26,7 +26,7 @@ struct tspfile{
 	struct city *cities;
 };
 
-
 int parse_file(char * file_name, struct tspfile * file);
+int get_opt(char * file);
 
 #endif

@@ -32,7 +32,7 @@ void draw_map(struct list *all_list) {
 		curr = curr->right;
 	} while (curr != all_list->head);
 	SDL_RenderPresent(renderer);
-	//SDL_Delay(0);
+	//SDL_Delay(60);
 //	/getchar();
 }
 

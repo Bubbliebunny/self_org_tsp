@@ -5,7 +5,7 @@
 
 
 
-void start_selforg(struct list *all_list, u_int neighbours, u_int jump, u_int cycles,_Bool randstart);
+double start_selforg(struct list *all_list, u_int neighbours, u_int repel,u_int cycle);
 
 
 
